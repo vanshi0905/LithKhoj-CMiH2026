@@ -32,6 +32,8 @@ from src.models.feature_importance import compute_feature_rankings
 from src.evaluation.metrics import compute_prediction_area_plot
 from src.evaluation.target_extractor import extract_prospective_targets
 from src.export.exporter import export_prospectivity_deliverables
+from src.geospatial.subsurface_3d import Subsurface3DModel
+from src.export.dossier_generator import UNFCG3DossierGenerator
 
 
 def run_pipeline(district: str = "katghora", fast: bool = False):
@@ -165,6 +167,28 @@ def run_pipeline(district: str = "katghora", fast: bool = False):
         uncertainty_map=uncertainty_map
     )
 
+    # 3D Subsurface Implicit Modeling & Drillhole Inversion
+    collars_csv = os.path.join(CURRENT_DIR, "data", "katghora_borehole_collars.csv")
+    assays_csv = os.path.join(CURRENT_DIR, "data", "katghora_drill_core_assays.csv")
+    if is_katghora and os.path.exists(collars_csv) and os.path.exists(assays_csv):
+        print("\n  [3D Geostatistics] Executing Subsurface Implicit Voxel Inversion...")
+        sub3d = Subsurface3DModel(collars_csv, assays_csv)
+        nx_3d, ny_3d, nz_3d = (20, 15, 12) if fast else (40, 30, 25)
+        sub3d.interpolate_voxel_grid("li_ppm", nx=nx_3d, ny=ny_3d, nz=nz_3d)
+        res_3d = sub3d.compute_tonnage_and_resource("li_ppm", cutoff=300.0)
+        print(f"  -> 3D Pegmatite Resource Envelope: {res_3d['tonnage_million_tonnes']:.2f} MT "
+              f"at {res_3d['mean_grade_ppm']:.1f} ppm Li ({res_3d['contained_lce_tonnes']:,.0f} tonnes LCE equivalent).")
+
+    # Generate UNFC-1997 / CRIRSCO G3 Exploration Dossier PDF
+    dossier_gen = UNFCG3DossierGenerator(output_dir=output_dir, district_name=dist_name)
+    dossier_filename = f"UNFC_G3_Exploration_Target_Dossier_{district_clean.capitalize()}.pdf"
+    dossier_pdf = dossier_gen.generate_dossier_pdf(
+        targets_geojson_path=paths["geojson"],
+        metrics_dict=pa_metrics,
+        output_filename=dossier_filename,
+    )
+    paths["dossier_pdf"] = dossier_pdf
+
     elapsed = time.time() - start_time
     print("\n" + "=" * 75)
     print("  DELIVERABLES SUCCESSFULLY GENERATED")
@@ -176,6 +200,7 @@ def run_pipeline(district: str = "katghora", fast: bool = False):
     print(f"  - Metrics Summary:     {paths['metrics_json']}")
     print(f"  - Feature Rankings:    {paths['feature_rankings_csv']}")
     print(f"  - P-A Plot Chart:      {paths['pa_plot_png']}")
+    print(f"  - UNFC G3 Dossier PDF: {paths['dossier_pdf']}")
     print(f"  Total Execution Time:  {elapsed:.2f} seconds")
     print("=" * 75)
 
