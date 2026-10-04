@@ -9,7 +9,7 @@
 **Benchmarked Competitors**:
 1. **Team AMD (2024 1st Place Winner)**: Atomic Minerals Directorate for Exploration and Research (*"Gold & Copper Prospectivity Model in Banswara-Bhilwara"*)
 2. **Team sRCg / IIT (ISM) Dhanbad (2025 1st Place Winner)**: Department of Applied Geophysics & TEXMiN (*"Mineral Targeting using Artificial Intelligence"*)
-3. **Li-Seeker (Our Solution for CMiH 2026)**: Multi-Modal Evidential MPM with Positive-Unlabeled Bagging, Epistemic Uncertainty Quantification, 3D Borehole Assay Calibration, and P-A Fractal Economics
+3. **LithKhoj (formerly Li-Seeker, Our Solution for CMiH 2026)**: Multi-Modal Evidential MPM with Positive-Unlabeled Bagging, Epistemic Uncertainty Quantification, 3D Borehole Assay Calibration, and P-A Fractal Economics
 
 ---
 
