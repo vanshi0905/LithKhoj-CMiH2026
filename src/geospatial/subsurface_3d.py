@@ -37,6 +37,7 @@ class Subsurface3DModel:
         self.grid_y = None
         self.grid_z = None
         self.voxel_grades = {}     # element -> (nx, ny, nz)
+        self._tonnage_cache = {}
 
         self.collars_path = collars_path
         self.assays_path = assays_path
@@ -152,29 +153,30 @@ class Subsurface3DModel:
                 method = "idw"  # Fallback to IDW
 
         if method == "idw":
-            # Anisotropic 3D IDW (vertical distance weighted higher to reflect layered pegmatites)
+            # Anisotropic 3D IDW accelerated via spatial k-d tree
             vert_exag = 2.0
-            pred = np.zeros(len(grid_pts), dtype=np.float32)
-            pts = self.sample_points
+            from scipy.spatial import cKDTree
 
-            # Chunked distance matrix computation to optimize memory
-            chunk_size = 2000
-            for i in range(0, len(grid_pts), chunk_size):
-                chunk = grid_pts[i : i + chunk_size]
-                dx = chunk[:, 0:1] - pts[:, 0]
-                dy = chunk[:, 1:2] - pts[:, 1]
-                dz = (chunk[:, 2:3] - pts[:, 2]) * vert_exag
+            pts_scaled = self.sample_points.copy()
+            pts_scaled[:, 2] *= vert_exag
+            grid_scaled = grid_pts.copy()
+            grid_scaled[:, 2] *= vert_exag
 
-                dist = np.sqrt(dx * dx + dy * dy + dz * dz)
-                dist = np.maximum(dist, 1.0)  # Prevent divide-by-zero at collar points
-                weights = 1.0 / (dist ** idw_power)
-                weights_sum = np.sum(weights, axis=1)
+            tree = cKDTree(pts_scaled)
+            k_neighbors = min(15, len(self.sample_points))
+            dists, idxs = tree.query(grid_scaled, k=k_neighbors)
 
-                pred[i : i + chunk_size] = np.sum(weights * vals, axis=1) / weights_sum
+            dists = np.maximum(dists, 1.0)
+            weights = 1.0 / (dists ** idw_power)
+            weights_sum = np.sum(weights, axis=1, keepdims=True)
+            norm_weights = weights / weights_sum
 
+            neighbor_vals = vals[idxs]
+            pred = np.sum(norm_weights * neighbor_vals, axis=1).astype(np.float32)
             pred = pred.reshape(nx, ny, nz)
 
         self.voxel_grades[element] = pred
+        self._tonnage_cache.clear()
         dx = (self.grid_bounds["max_x"] - self.grid_bounds["min_x"]) / (len(self.grid_x) - 1)
         dy = (self.grid_bounds["max_y"] - self.grid_bounds["min_y"]) / (len(self.grid_y) - 1)
         dz = (self.grid_bounds["max_z"] - self.grid_bounds["min_z"]) / (len(self.grid_z) - 1)
@@ -200,7 +202,12 @@ class Subsurface3DModel:
     ) -> Dict[str, Any]:
         """
         Computes 3D orebody volume, tonnage, and contained metal above economic grade cutoff.
+        Cached for O(1) interactive slider evaluation in dashboards.
         """
+        cache_key = (element, round(cutoff, 2), self.rock_density)
+        if cache_key in self._tonnage_cache:
+            return self._tonnage_cache[cache_key].copy()
+
         if element not in self.voxel_grades:
             self.interpolate_voxel_grid(element)
 
@@ -228,7 +235,7 @@ class Subsurface3DModel:
             mean_grade, peak_grade = 0.0, 0.0
             contained_li_metal_t, contained_li2o_t, contained_lce_t = 0.0, 0.0, 0.0
 
-        return {
+        result = {
             "element": element,
             "cutoff": cutoff,
             "ore_cells_count": ore_cells,
@@ -241,6 +248,8 @@ class Subsurface3DModel:
             "contained_lce_tonnes": contained_lce_t,
             "rock_density_tpm3": self.rock_density,
         }
+        self._tonnage_cache[cache_key] = result
+        return result
 
     def calculate_resource_tonnage(
         self,
