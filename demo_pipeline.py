@@ -40,7 +40,12 @@ def run_pipeline(district: str = "katghora", fast: bool = False):
     district_clean = district.lower().strip()
     is_katghora = "katghora" in district_clean or "korba" in district_clean
 
-    dist_name = "Katghora Block, Korba District, Chhattisgarh (CGC Margin)"
+    try:
+        from src.geospatial.district_profiles import get_district_profile
+        profile = get_district_profile(district_clean, fallback_to_default=True)
+        dist_name = f"{profile.name}, {profile.state} ({profile.craton})"
+    except Exception:
+        dist_name = "Katghora Block, Korba District, Chhattisgarh (CGC Margin)"
 
     print("=" * 75, flush=True)
     print("  LITHKHOJ: AI-POWERED MINERAL PROSPECTIVITY MAPPING (CMiH 2026)", flush=True)

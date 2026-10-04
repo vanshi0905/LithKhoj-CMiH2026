@@ -35,10 +35,6 @@ jobs:
         run: |
           pytest tests/ -v
 
-      - name: Smoke test CLI pipeline (Fast Mode - Bhilwara)
+      - name: Multi-Craton Smoke Tests (All 4 Districts)
         run: |
-          python demo_pipeline.py --fast --district bhilwara
-
-      - name: Smoke test CLI pipeline (Fast Mode - Katghora)
-        run: |
-          python demo_pipeline.py --fast --district katghora
+          python scripts/run_smoke_tests.py

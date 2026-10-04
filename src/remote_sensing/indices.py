@@ -154,11 +154,11 @@ def compute_spectral_feature_cube(bands: dict) -> dict:
     Expected keys: 'B2', 'B3', 'B4', 'B8', 'B8A' (or 'B8a'), 'B11', 'B12', and optional 'B6' (or 'B06').
     Returns a dictionary of 2D numpy arrays.
     """
-    b2 = bands['B2']
-    b3 = bands['B3']
-    b4 = bands['B4']
-    b8 = bands['B8']
-    b8a = bands.get('B8A', bands.get('B8a', bands['B8']))
+    b2 = bands.get('B2', bands.get('B02'))
+    b3 = bands.get('B3', bands.get('B03'))
+    b4 = bands.get('B4', bands.get('B04'))
+    b8 = bands.get('B8', bands.get('B08'))
+    b8a = bands.get('B8A', bands.get('B8a', b8))
     b11 = bands['B11']
     b12 = bands['B12']
 

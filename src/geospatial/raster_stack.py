@@ -37,9 +37,10 @@ class EvidentialRasterStack:
         bare_valid = filter_bare_rock_pediment(self.spectral_features['ndvi'], ndvi_threshold=ndvi_threshold)
         self.valid_mask = scl_valid & bare_valid
 
-        # 3. Crosta Technique PCA on Al-OH bands [B2, B4, B11, B12]
+        b2_arr = self.bands.get('B2', self.bands.get('B02'))
+        b4_arr = self.bands.get('B4', self.bands.get('B04'))
         self.pc_al_oh, self.best_pc_idx, self.pca_loadings, self.pca_var_ratio = run_crosta_al_oh_pca(
-            self.bands['B2'], self.bands['B4'], self.bands['B11'], self.bands['B12'],
+            b2_arr, b4_arr, self.bands['B11'], self.bands['B12'],
             mask=self.valid_mask
         )
 

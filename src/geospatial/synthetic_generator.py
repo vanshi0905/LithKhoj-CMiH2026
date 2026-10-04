@@ -536,8 +536,8 @@ def build_marlagalla_benchmark(nrows: int = 240, ncols: int = 360, seed: int = 4
     # Spectral bands (spodumene pegmatites exhibit high B11/B12 ratio and high B2 albedo)
     bands = {}
     base_reflectance = {
-        "B02": 0.18, "B03": 0.22, "B04": 0.25, "B05": 0.27,
-        "B06": 0.30, "B07": 0.32, "B08": 0.35, "B8A": 0.36,
+        "B2": 0.18, "B3": 0.22, "B4": 0.25,
+        "B6": 0.30, "B8": 0.35, "B8A": 0.36,
         "B11": 0.42, "B12": 0.26,
     }
     for b, ref in base_reflectance.items():
@@ -551,7 +551,10 @@ def build_marlagalla_benchmark(nrows: int = 240, ncols: int = 360, seed: int = 4
         cmin, cmax = max(0, c - rad), min(ncols, c + rad + 1)
         bands["B11"][rmin:rmax, cmin:cmax] += 0.12
         bands["B12"][rmin:rmax, cmin:cmax] -= 0.08
-        bands["B02"][rmin:rmax, cmin:cmax] += 0.06
+        bands["B2"][rmin:rmax, cmin:cmax] += 0.06
+
+    for b_num in ["2", "3", "4", "6", "8"]:
+        bands[f"B0{b_num}"] = bands[f"B{b_num}"]
 
     scl = np.full((nrows, ncols), 4, dtype=np.uint8)  # Vegetation / soil
 
@@ -627,8 +630,8 @@ def build_bastar_benchmark(nrows: int = 240, ncols: int = 360, seed: int = 42):
 
     bands = {}
     base_reflectance = {
-        "B02": 0.17, "B03": 0.20, "B04": 0.24, "B05": 0.26,
-        "B06": 0.29, "B07": 0.31, "B08": 0.34, "B8A": 0.35,
+        "B2": 0.17, "B3": 0.20, "B4": 0.24,
+        "B6": 0.29, "B8": 0.34, "B8A": 0.35,
         "B11": 0.40, "B12": 0.27,
     }
     for b, ref in base_reflectance.items():
@@ -642,6 +645,10 @@ def build_bastar_benchmark(nrows: int = 240, ncols: int = 360, seed: int = 42):
         cmin, cmax = max(0, c - rad), min(ncols, c + rad + 1)
         bands["B11"][rmin:rmax, cmin:cmax] += 0.10
         bands["B12"][rmin:rmax, cmin:cmax] -= 0.06
+        bands["B2"][rmin:rmax, cmin:cmax] += 0.05
+
+    for b_num in ["2", "3", "4", "6", "8"]:
+        bands[f"B0{b_num}"] = bands[f"B{b_num}"]
 
     scl = np.full((nrows, ncols), 4, dtype=np.uint8)
 
