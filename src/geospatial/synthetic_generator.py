@@ -500,14 +500,206 @@ def build_katghora_benchmark(nrows: int = 240, ncols: int = 360, seed: int = 42)
     return dataset
 
 
+def build_marlagalla_benchmark(nrows: int = 240, ncols: int = 360, seed: int = 42):
+    """
+    Constructs multi-modal benchmark for Marlagalla-Allapatna Belt, Mandya District, Karnataka.
+    Craton: Western Dharwar Craton | Mineral System: Spodumene-Dominant LCT Pegmatites (UTM 43N).
+    """
+    np.random.seed(seed)
+    # Bounding box: Lat 12.50 - 12.90 N, Lon 76.50 - 76.90 E
+    grid = GeoGrid(min_lat=12.50, max_lat=12.90, min_lon=76.50, max_lon=76.90, nrows=nrows, ncols=ncols)
+
+    occurrences = [
+        {"name": "Marlagalla Main Spodumene Pegmatite", "latitude": 12.68, "longitude": 76.67, "type": "Spodumene Pegmatite"},
+        {"name": "Allapatna South Dyke Swarm", "latitude": 12.65, "longitude": 76.71, "type": "Spodumene Pegmatite"},
+        {"name": "Nagavalli Tantalite-Spodumene Body", "latitude": 12.72, "longitude": 76.65, "type": "LCT Pegmatite"},
+        {"name": "Mundagere North Outcrop", "latitude": 12.75, "longitude": 76.69, "type": "Spodumene Pegmatite"},
+        {"name": "Bettadasanapura Quartz-Spodumene Core", "latitude": 12.62, "longitude": 76.74, "type": "Spodumene Pegmatite"},
+    ]
+
+    lineaments = [
+        {"start": (12.52, 76.60), "end": (12.88, 76.72)},  # NNW-SSE Dharwar greenstone boundary shear
+        {"start": (12.55, 76.75), "end": (12.82, 76.82)},  # Nagamangala schist belt fracture
+        {"start": (12.66, 76.52), "end": (12.70, 76.88)},  # ENE conjugate fault
+    ]
+    fault_dist_km, lineament_density = compute_fault_distance_and_density(lineaments, grid)
+
+    granite_centers = [(12.60, 76.58), (12.78, 76.75), (12.82, 76.62)]
+    granite_dist_km = compute_granite_contact_distance(granite_centers, grid)
+
+    lats, lons = grid.get_mesh_coords()
+    base_dem = 680.0 + 70.0 * np.sin(lats * 15.0) + 40.0 * np.cos(lons * 12.0)
+    dem = gaussian_filter(base_dem, sigma=1.5)
+    slope_rad = np.arctan(np.hypot(np.gradient(dem, axis=0), np.gradient(dem, axis=1)))
+    slope_deg = np.degrees(slope_rad)
+
+    # Spectral bands (spodumene pegmatites exhibit high B11/B12 ratio and high B2 albedo)
+    bands = {}
+    base_reflectance = {
+        "B02": 0.18, "B03": 0.22, "B04": 0.25, "B05": 0.27,
+        "B06": 0.30, "B07": 0.32, "B08": 0.35, "B8A": 0.36,
+        "B11": 0.42, "B12": 0.26,
+    }
+    for b, ref in base_reflectance.items():
+        arr = ref + np.random.normal(0, 0.02, (nrows, ncols)).astype(np.float32)
+        bands[b] = np.clip(gaussian_filter(arr, sigma=1.2), 0.05, 0.90)
+
+    for occ in occurrences:
+        r, c = grid.coord_to_pixel(occ["latitude"], occ["longitude"])
+        rad = np.random.randint(2, 4)
+        rmin, rmax = max(0, r - rad), min(nrows, r + rad + 1)
+        cmin, cmax = max(0, c - rad), min(ncols, c + rad + 1)
+        bands["B11"][rmin:rmax, cmin:cmax] += 0.12
+        bands["B12"][rmin:rmax, cmin:cmax] -= 0.08
+        bands["B02"][rmin:rmax, cmin:cmax] += 0.06
+
+    scl = np.full((nrows, ncols), 4, dtype=np.uint8)  # Vegetation / soil
+
+    # Geophysics & Geochemistry
+    aeromag_rtp = -40.0 * np.exp(-granite_dist_km / 8.0) + np.random.normal(0, 8.0, (nrows, ncols))
+    ngcm_li = 35.0 + 120.0 * np.exp(-fault_dist_km / 4.0) + np.random.normal(0, 10.0, (nrows, ncols))
+    ngcm_k_rb = 160.0 - 55.0 * np.exp(-granite_dist_km / 5.0) + np.random.normal(0, 12.0, (nrows, ncols))
+    radiometric_k_pct = 2.4 * np.exp(-granite_dist_km / 6.0) + 0.6
+    radiometric_u_th_ratio = 0.32 + 0.18 * np.exp(-fault_dist_km / 5.0)
+    radiometric_ternary_index = 0.65 * radiometric_k_pct + 0.35 * radiometric_u_th_ratio
+    bouguer_gravity_mgal = -75.0 + 15.0 * (dem / 800.0)
+    gravity_gradient_fvd = gaussian_filter(np.gradient(bouguer_gravity_mgal, axis=0), sigma=1.0)
+    aster_quartz_index_qi = 1.05 + 0.25 * np.exp(-fault_dist_km / 3.0)
+    sar_cband_vh_db = -19.0 + 2.5 * lineament_density
+    sar_roughness_ratio = 3.8 - 0.8 * np.exp(-fault_dist_km / 4.0)
+
+    return {
+        'district': 'Marlagalla-Allapatna',
+        'grid': grid,
+        'occurrences': occurrences,
+        'all_ground_truth': occurrences,
+        'bands': bands,
+        'scl': scl,
+        'dem': dem,
+        'slope': slope_deg,
+        'fault_dist_km': fault_dist_km,
+        'lineament_density': lineament_density,
+        'granite_dist_km': granite_dist_km,
+        'aeromag_rtp': aeromag_rtp,
+        'ngcm_li': ngcm_li,
+        'ngcm_k_rb': ngcm_k_rb,
+        'radiometric_k_pct': radiometric_k_pct,
+        'radiometric_u_th_ratio': radiometric_u_th_ratio,
+        'radiometric_ternary_index': radiometric_ternary_index,
+        'bouguer_gravity_mgal': bouguer_gravity_mgal,
+        'gravity_gradient_fvd': gravity_gradient_fvd,
+        'aster_quartz_index_qi': aster_quartz_index_qi,
+        'sar_cband_vh_db': sar_cband_vh_db,
+        'sar_roughness_ratio': sar_roughness_ratio,
+    }
+
+
+def build_bastar_benchmark(nrows: int = 240, ncols: int = 360, seed: int = 42):
+    """
+    Constructs multi-modal benchmark for Govindpal-Tongpal Belt, Bastar & Sukma Districts, Chhattisgarh.
+    Craton: Bastar Craton | Mineral System: Cassiterite-Columbite-Lepidolite Pegmatites (UTM 44N).
+    """
+    np.random.seed(seed)
+    # Bounding box: Lat 18.60 - 19.00 N, Lon 81.70 - 82.10 E
+    grid = GeoGrid(min_lat=18.60, max_lat=19.00, min_lon=81.70, max_lon=82.10, nrows=nrows, ncols=ncols)
+
+    occurrences = [
+        {"name": "Govindpal Cassiterite Pegmatite", "latitude": 18.78, "longitude": 81.88, "type": "Sn-Ta Pegmatite"},
+        {"name": "Tongpal Lepidolite Dyke", "latitude": 18.82, "longitude": 81.93, "type": "Lepidolite Pegmatite"},
+        {"name": "Chiapal Columbite Quarry", "latitude": 18.74, "longitude": 81.85, "type": "Nb-Ta Pegmatite"},
+        {"name": "Mundval Beryl-Cassiterite Body", "latitude": 18.86, "longitude": 81.91, "type": "Sn-Be Pegmatite"},
+    ]
+
+    lineaments = [
+        {"start": (18.62, 81.75), "end": (18.98, 81.95)},  # Sabari River fracture trend
+        {"start": (18.70, 81.98), "end": (18.95, 82.05)},  # Bengpal-Paliam shear corridor
+    ]
+    fault_dist_km, lineament_density = compute_fault_distance_and_density(lineaments, grid)
+
+    granite_centers = [(18.75, 81.82), (18.90, 81.96)]
+    granite_dist_km = compute_granite_contact_distance(granite_centers, grid)
+
+    lats, lons = grid.get_mesh_coords()
+    base_dem = 310.0 + 85.0 * np.sin(lats * 18.0) + 30.0 * np.cos(lons * 15.0)
+    dem = gaussian_filter(base_dem, sigma=1.5)
+    slope_rad = np.arctan(np.hypot(np.gradient(dem, axis=0), np.gradient(dem, axis=1)))
+    slope_deg = np.degrees(slope_rad)
+
+    bands = {}
+    base_reflectance = {
+        "B02": 0.17, "B03": 0.20, "B04": 0.24, "B05": 0.26,
+        "B06": 0.29, "B07": 0.31, "B08": 0.34, "B8A": 0.35,
+        "B11": 0.40, "B12": 0.27,
+    }
+    for b, ref in base_reflectance.items():
+        arr = ref + np.random.normal(0, 0.02, (nrows, ncols)).astype(np.float32)
+        bands[b] = np.clip(gaussian_filter(arr, sigma=1.2), 0.05, 0.90)
+
+    for occ in occurrences:
+        r, c = grid.coord_to_pixel(occ["latitude"], occ["longitude"])
+        rad = np.random.randint(2, 4)
+        rmin, rmax = max(0, r - rad), min(nrows, r + rad + 1)
+        cmin, cmax = max(0, c - rad), min(ncols, c + rad + 1)
+        bands["B11"][rmin:rmax, cmin:cmax] += 0.10
+        bands["B12"][rmin:rmax, cmin:cmax] -= 0.06
+
+    scl = np.full((nrows, ncols), 4, dtype=np.uint8)
+
+    aeromag_rtp = -30.0 * np.exp(-granite_dist_km / 7.0) + np.random.normal(0, 7.0, (nrows, ncols))
+    ngcm_li = 25.0 + 80.0 * np.exp(-fault_dist_km / 5.0) + np.random.normal(0, 8.0, (nrows, ncols))
+    ngcm_k_rb = 150.0 - 45.0 * np.exp(-granite_dist_km / 6.0) + np.random.normal(0, 10.0, (nrows, ncols))
+    radiometric_k_pct = 2.1 * np.exp(-granite_dist_km / 5.0) + 0.5
+    radiometric_u_th_ratio = 0.28 + 0.15 * np.exp(-fault_dist_km / 6.0)
+    radiometric_ternary_index = 0.60 * radiometric_k_pct + 0.40 * radiometric_u_th_ratio
+    bouguer_gravity_mgal = -60.0 + 10.0 * (dem / 500.0)
+    gravity_gradient_fvd = gaussian_filter(np.gradient(bouguer_gravity_mgal, axis=0), sigma=1.0)
+    aster_quartz_index_qi = 1.02 + 0.20 * np.exp(-fault_dist_km / 4.0)
+    sar_cband_vh_db = -20.0 + 2.0 * lineament_density
+    sar_roughness_ratio = 3.5 - 0.7 * np.exp(-fault_dist_km / 5.0)
+
+    return {
+        'district': 'Bastar-Tongpal',
+        'grid': grid,
+        'occurrences': occurrences,
+        'all_ground_truth': occurrences,
+        'bands': bands,
+        'scl': scl,
+        'dem': dem,
+        'slope': slope_deg,
+        'fault_dist_km': fault_dist_km,
+        'lineament_density': lineament_density,
+        'granite_dist_km': granite_dist_km,
+        'aeromag_rtp': aeromag_rtp,
+        'ngcm_li': ngcm_li,
+        'ngcm_k_rb': ngcm_k_rb,
+        'radiometric_k_pct': radiometric_k_pct,
+        'radiometric_u_th_ratio': radiometric_u_th_ratio,
+        'radiometric_ternary_index': radiometric_ternary_index,
+        'bouguer_gravity_mgal': bouguer_gravity_mgal,
+        'gravity_gradient_fvd': gravity_gradient_fvd,
+        'aster_quartz_index_qi': aster_quartz_index_qi,
+        'sar_cband_vh_db': sar_cband_vh_db,
+        'sar_roughness_ratio': sar_roughness_ratio,
+    }
+
+
 def build_district_benchmark(district: str = "katghora", nrows: int = 240, ncols: int = 360, seed: int = 42):
     """
     Dispatcher to construct benchmark datasets for supported exploration districts.
-    Supported: 'katghora' (default, Korba, Chhattisgarh), 'bhilwara' (Rajasthan).
+    Supported:
+      - 'katghora' (Korba District, Chhattisgarh - CGC Margin)
+      - 'marlagalla_allapatna' (Mandya District, Karnataka - Dharwar Craton)
+      - 'bastar_tongpal' (Bastar & Sukma Districts, Chhattisgarh - Bastar Craton)
+      - 'bhilwara' (Rajasthan - Aravalli Craton)
     """
     d_clean = district.lower().strip()
-    if "katghora" in d_clean or "korba" in d_clean or "chhattisgarh" in d_clean:
+    if "katghora" in d_clean or "korba" in d_clean:
         return build_katghora_benchmark(nrows=nrows, ncols=ncols, seed=seed)
+    elif "marlagalla" in d_clean or "mandya" in d_clean or "allapatna" in d_clean:
+        return build_marlagalla_benchmark(nrows=nrows, ncols=ncols, seed=seed)
+    elif "bastar" in d_clean or "tongpal" in d_clean or "sukma" in d_clean or "govindpal" in d_clean:
+        return build_bastar_benchmark(nrows=nrows, ncols=ncols, seed=seed)
     else:
         return build_bhilwara_benchmark(nrows=nrows, ncols=ncols, seed=seed)
+
 

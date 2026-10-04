@@ -88,3 +88,17 @@ def test_profile_to_dict():
     assert "bbox" in d
     assert d["bbox"]["min_lat"] < d["bbox"]["max_lat"]
     assert "center_coords" in d
+
+
+def test_all_cratons_synthetic_generation():
+    """Verify that build_district_benchmark generates valid datasets across all 4 cratons."""
+    from src.geospatial.synthetic_generator import build_district_benchmark
+
+    for district_key in ["katghora", "marlagalla", "bastar", "bhilwara"]:
+        dataset = build_district_benchmark(district_key, nrows=20, ncols=25, seed=123)
+        assert "grid" in dataset
+        assert "bands" in dataset
+        assert "occurrences" in dataset
+        assert len(dataset["occurrences"]) > 0
+        assert dataset["grid"].nrows == 20 and dataset["grid"].ncols == 25
+
