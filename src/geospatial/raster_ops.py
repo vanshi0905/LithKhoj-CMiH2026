@@ -2,6 +2,7 @@
 Geospatial Raster Operations & Coordinate Management.
 """
 
+import os
 import numpy as np
 import tifffile
 
@@ -44,14 +45,39 @@ class GeoGrid:
         return lats, lons
 
 
-def export_geotiff(raster: np.ndarray, filepath: str, grid: GeoGrid, nodata: float = -9999.0):
+def write_world_file(filepath: str, grid: GeoGrid) -> str:
     """
-    Exports a 2D float32 array as a standard GeoTIFF with coordinate tags.
+    Writes an ESRI World File (.tfw) for the exported TIFF raster.
+    Format (6 lines):
+      Line 1: x-component of pixel width (degrees lon) = lon_res
+      Line 2: y-component of pixel rotation (0.0)
+      Line 3: x-component of pixel rotation (0.0)
+      Line 4: y-component of pixel height (negative degrees lat) = -lat_res
+      Line 5: x-coordinate of center of upper-left pixel = min_lon + lon_res/2
+      Line 6: y-coordinate of center of upper-left pixel = max_lat - lat_res/2
+    """
+    base, _ = os.path.splitext(filepath)
+    tfw_path = f"{base}.tfw"
+    x_res = grid.lon_res
+    y_res = -grid.lat_res
+    x_origin = grid.min_lon + (grid.lon_res / 2.0)
+    y_origin = grid.max_lat - (grid.lat_res / 2.0)
+    with open(tfw_path, "w") as f:
+        f.write(f"{x_res:.10f}\n0.0000000000\n0.0000000000\n{y_res:.10f}\n{x_origin:.10f}\n{y_origin:.10f}\n")
+    return tfw_path
+
+
+def export_geotiff(raster: np.ndarray, filepath: str, grid: GeoGrid, nodata: float = -9999.0) -> str:
+    """
+    Exports a 2D float32 array as a standard GeoTIFF with coordinate tags and ESRI .tfw world file.
     """
     out_raster = np.where(np.isnan(raster), nodata, raster).astype(np.float32)
-    # Write GeoTIFF using tifffile
+    # Write GeoTIFF with CRS and bounds metadata
     tifffile.imwrite(
         filepath,
         out_raster,
-        description=f"District Prospectivity Grid: bounds=({grid.min_lat},{grid.min_lon},{grid.max_lat},{grid.max_lon})"
+        description=f"District Prospectivity Grid: bounds=({grid.min_lat},{grid.min_lon},{grid.max_lat},{grid.max_lon}) CRS=EPSG:4326"
     )
+    # Generate accompanying ESRI world file (.tfw) for direct QGIS / ArcGIS ingestion
+    write_world_file(filepath, grid)
+    return filepath

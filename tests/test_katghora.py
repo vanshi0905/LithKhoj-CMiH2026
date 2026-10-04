@@ -78,6 +78,14 @@ def test_katghora_export_deliverables_integration(tmp_path):
         )
         assert os.path.exists(paths["geotiff"])
         assert "katghora" in paths["geotiff"]
+        # Verify ESRI world file (.tfw) generated alongside GeoTIFF
+        tfw_path = paths["geotiff"].replace(".tif", ".tfw")
+        assert os.path.exists(tfw_path), "ESRI .tfw world file must exist alongside GeoTIFF"
+        with open(tfw_path, "r") as tfw_f:
+            tfw_lines = tfw_f.read().strip().split("\n")
+        assert len(tfw_lines) == 6, "ESRI world file must contain exactly 6 parameters"
+        assert float(tfw_lines[0]) > 0.0, "X-pixel resolution must be positive"
+        assert float(tfw_lines[3]) < 0.0, "Y-pixel resolution must be negative"
         assert os.path.exists(paths["geojson"])
         assert "katghora" in paths["geojson"]
         assert os.path.exists(paths["pa_plot_png"])
