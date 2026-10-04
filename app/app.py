@@ -479,16 +479,38 @@ def main():
         </div>
     """, unsafe_allow_html=True)
 
-    # Sidebar: Locked to Katghora Block (Korba, Chhattisgarh)
+    # Sidebar: Multi-Craton District Selector & Geological Priors
     with st.sidebar:
-        st.markdown("""
-            <div style="background: rgba(5, 150, 105, 0.08); border: 1px solid #059669; border-radius: 8px; padding: 12px; margin-bottom: 15px;">
+        districts_list = list_supported_districts()
+        district_options = {d["name"]: d["id"] for d in districts_list}
+        selected_district_name = st.selectbox(
+            "🗺️ Active Exploration District",
+            options=list(district_options.keys()),
+            index=0,
+            help="Select Indian Precambrian critical mineral craton / pegmatite belt."
+        )
+        selected_district_id = district_options[selected_district_name]
+        profile = get_district_profile(selected_district_id)
+
+        # Dynamic Concession Badge
+        st.markdown(f"""
+            <div style="background: rgba(5, 150, 105, 0.08); border: 1px solid #059669; border-radius: 8px; padding: 12px; margin-bottom: 12px;">
                 <div style="font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.08em; color: #059669; font-weight: 800;">Target Concession</div>
-                <div style="font-size: 1.2rem; font-weight: 800; color: #0f172a; margin-top: 2px;">Katghora Block</div>
-                <div style="font-size: 0.82rem; color: #64748b;">Korba District, Chhattisgarh</div>
-                <div style="font-size: 0.75rem; color: #d97706; margin-top: 6px; font-weight: 600;">★ India's 1st Auctioned Critical Mineral Block</div>
+                <div style="font-size: 1.15rem; font-weight: 800; color: #0f172a; margin-top: 2px;">{profile.name}</div>
+                <div style="font-size: 0.82rem; color: #64748b;">{profile.state} &bull; {profile.craton}</div>
+                <div style="font-size: 0.75rem; color: #d97706; margin-top: 6px; font-weight: 600;">Type: {profile.pegmatite_type}</div>
             </div>
         """, unsafe_allow_html=True)
+
+        with st.expander("ℹ️ Craton Dossier & Geological Priors", expanded=False):
+            st.markdown(f"**Target Minerals**: {', '.join(profile.target_minerals)}")
+            st.markdown(f"**Key Host Rocks**: {', '.join(profile.key_host_rocks)}")
+            st.markdown(f"**UTM Grid**: Zone {profile.utm_zone}{profile.utm_hemisphere} (EPSG:{profile.epsg_code})")
+            if profile.gsi_report_ref:
+                st.caption(f"Ref: {profile.gsi_report_ref}")
+            st.markdown("**Evidential Prior Weights**:")
+            for feat, wt in profile.geological_prior_weights.items():
+                st.caption(f"&bull; `{feat}`: {wt:.2f}")
 
         st.subheader("⚙️ Classification Controls")
         user_threshold = st.slider(
